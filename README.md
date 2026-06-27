@@ -1,4 +1,4 @@
-# Text Bulk Replacer
+# テキスト一括置換ツール
 
 ![スクリーンショット](images/ss.jpg)
 
