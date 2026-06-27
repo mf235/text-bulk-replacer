@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Text Bulk Replacer v2
+Text Bulk Replacer v3
 
 指定フォルダ配下の対象テキストファイルを、調査または一括置換するGUIツール。
 - 通常文字列 / 正規表現
@@ -43,7 +43,7 @@ except Exception:
     TkinterDnD = None  # type: ignore
 
 
-APP_TITLE = "テキスト一括置換ツール"
+APP_TITLE = "テキスト一括置換ツール v3"
 MAX_LOG_MATCHES_PER_FILE = 500
 PREVIEW_LIMIT = 120
 HISTORY_LIMIT = 10
@@ -306,10 +306,11 @@ class TextBulkReplacerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry("980x790")
-        self.root.minsize(880, 650)
 
         self.settings = load_settings()
+        self.apply_saved_window_geometry()
+        self.root.minsize(880, 650)
+
         self.history: list[dict[str, object]] = self._sanitize_history(self.settings.get("history", []))
 
         self.folder_var = tk.StringVar(value=str(self.settings.get("folder", "")))
@@ -327,6 +328,34 @@ class TextBulkReplacerApp:
         self._load_last_replace_texts()
         self.refresh_history_combo()
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def apply_saved_window_geometry(self) -> None:
+        default_geometry = "980x790"
+        geometry = str(self.settings.get("window_geometry", "")).strip()
+        if not geometry or not re.fullmatch(r"\d+x\d+(?:[+-]\d+[+-]\d+)?", geometry):
+            self.root.geometry(default_geometry)
+            return
+
+        try:
+            self.root.geometry(geometry)
+            self.root.update_idletasks()
+
+            width = max(self.root.winfo_width(), 880)
+            height = max(self.root.winfo_height(), 650)
+            x = self.root.winfo_x()
+            y = self.root.winfo_y()
+
+            screen_w = self.root.winfo_screenwidth()
+            screen_h = self.root.winfo_screenheight()
+
+            # 前回のモニター配置変更などで画面外に出た場合は、表示できる範囲へ戻す。
+            if x < -width + 120 or y < -height + 80 or x > screen_w - 80 or y > screen_h - 80:
+                x = max(0, min(80, max(screen_w - width, 0)))
+                y = max(0, min(80, max(screen_h - height, 0)))
+
+            self.root.geometry(f"{width}x{height}+{x}+{y}")
+        except Exception:
+            self.root.geometry(default_geometry)
 
     def _build_ui(self) -> None:
         root = self.root
@@ -506,8 +535,16 @@ class TextBulkReplacerApp:
         self.history = self.history[:HISTORY_LIMIT]
         self.refresh_history_combo()
 
+    def get_window_geometry_for_settings(self) -> str:
+        try:
+            self.root.update_idletasks()
+            return self.root.winfo_geometry()
+        except Exception:
+            return str(self.settings.get("window_geometry", "980x790"))
+
     def collect_settings(self) -> dict:
         return {
+            "window_geometry": self.get_window_geometry_for_settings(),
             "folder": self.folder_var.get().strip(),
             "patterns": self.pattern_var.get().strip(),
             "use_regex": self.regex_var.get(),
